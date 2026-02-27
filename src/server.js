@@ -14,6 +14,10 @@ app.use(
 );
 app.use(express.json({ limit: "1mb" }));
 
+app.get("/", (req, res) => {
+  res.send("PortfolioStudio Backend is Running 🚀");
+});
+
 app.get("/api/health", (req, res) => {
   res.json({ ok: true });
 });
