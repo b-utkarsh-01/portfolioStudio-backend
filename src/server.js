@@ -1,9 +1,9 @@
 import express from "express";
 import cors from "cors";
-import { env } from "./src/config/env.js";
-import { connectToDatabase } from "./src/db/connect.js";
-import authRoutes from "./src/routes/authRoutes.js";
-import portfolioRoutes from "./src/routes/portfolioRoutes.js";
+import { env } from "./config/env.js";
+import { connectToDatabase } from "./db/connect.js";
+import authRoutes from "./routes/authRoutes.js";
+import portfolioRoutes from "./routes/portfolioRoutes.js";
 
 const app = express();
 
