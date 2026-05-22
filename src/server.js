@@ -11,6 +11,7 @@ import { createRateLimiter } from "./middleware/rateLimit.js";
 import { sendError } from "./middleware/errors.js";
 
 const app = express();
+app.set("trust proxy", 1);
 
 app.use(
   cors({
@@ -38,7 +39,7 @@ app.get("/api/health", (req, res) => {
   res.json({ ok: true });
 });
 
-app.use("/api/auth", createRateLimiter({ windowMs: 15 * 60 * 1000, max: 30 }), authRoutes);
+app.use("/api/auth", createRateLimiter({ windowMs: 15 * 60 * 1000, max: 300 }), authRoutes);
 app.use("/api/portfolios", createRateLimiter({ windowMs: 15 * 60 * 1000, max: 120 }), portfolioRoutes);
 app.use("/api/templates", templateRoutes);
 
