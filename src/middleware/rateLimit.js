@@ -2,7 +2,12 @@ const buckets = new Map();
 
 const now = () => Date.now();
 
-const defaultKeyGenerator = (req) => req.ip || req.headers["x-forwarded-for"] || "unknown";
+const defaultKeyGenerator = (req) => {
+  const forwardedFor = `${req.headers["x-forwarded-for"] || ""}`
+    .split(",")[0]
+    .trim();
+  return forwardedFor || req.ip || req.socket?.remoteAddress || "unknown";
+};
 
 export const createRateLimiter = ({
   windowMs = 15 * 60 * 1000,
