@@ -1,24 +1,42 @@
 import User from "../models/User.js";
-import { verifyToken } from "../utils/token.js";
+import { verifyAccessToken } from "../utils/token.js";
+import { ACCESS_COOKIE_NAME } from "../utils/authCookies.js";
+import { parseCookies } from "../utils/cookies.js";
+import { sendError } from "./errors.js";
 
 export const authMiddleware = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization || "";
     const [scheme, token] = authHeader.split(" ");
+    const cookies = parseCookies(req.headers.cookie || "");
+    const cookieToken = cookies[ACCESS_COOKIE_NAME] || "";
+    const accessToken = scheme === "Bearer" && token ? token : cookieToken;
 
-    if (scheme !== "Bearer" || !token) {
-      return res.status(401).json({ message: "Unauthorized" });
+    if (!accessToken) {
+      return sendError(res, req, {
+        status: 401,
+        code: "UNAUTHORIZED",
+        message: "Unauthorized",
+      });
     }
 
-    const decoded = verifyToken(token);
-    const user = await User.findById(decoded.sub).select("_id username displayName");
+    const decoded = verifyAccessToken(accessToken);
+    const user = await User.findById(decoded.sub).select("_id username displayName hasPremiumAccess");
     if (!user) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return sendError(res, req, {
+        status: 401,
+        code: "UNAUTHORIZED",
+        message: "Unauthorized",
+      });
     }
 
     req.user = user;
     return next();
   } catch {
-    return res.status(401).json({ message: "Unauthorized" });
+    return sendError(res, req, {
+      status: 401,
+      code: "UNAUTHORIZED",
+      message: "Unauthorized",
+    });
   }
 };

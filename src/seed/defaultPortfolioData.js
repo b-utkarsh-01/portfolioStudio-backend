@@ -1,4 +1,15 @@
 export const defaultPortfolioData = {
+  layout: {
+    stages: [
+      { id: "profile", title: "Profile", enabled: true },
+      { id: "contact", title: "Contact", enabled: true },
+      { id: "skills", title: "Skills", enabled: true },
+      { id: "work", title: "Work & Education", enabled: true },
+      { id: "social", title: "Services & Reviews", enabled: true },
+      { id: "publish", title: "Publish", enabled: true },
+    ],
+  },
+  customStages: [],
   profile: {
     name: "Your Name",
     title: ["Full Stack Developer", "Backend Engineer"],
@@ -41,5 +52,7 @@ export const defaultPortfolioData = {
   ],
   experiences: [],
   projects: [],
+  services: [],
+  testimonials: [],
   certifications: [],
 };
