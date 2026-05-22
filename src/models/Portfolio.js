@@ -19,7 +19,7 @@ const portfolioSchema = new mongoose.Schema(
     templateId: {
       type: String,
       required: true,
-      default: "portfolio-v1",
+      default: "premium-v1",
     },
     data: {
       type: mongoose.Schema.Types.Mixed,

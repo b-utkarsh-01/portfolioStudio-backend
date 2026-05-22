@@ -17,10 +17,23 @@ const userSchema = new mongoose.Schema(
       trim: true,
       maxlength: 100,
     },
+    hasPremiumAccess: {
+      type: Boolean,
+      default: false,
+    },
     passwordHash: {
       type: String,
       required: true,
     },
+    refreshTokens: [
+      {
+        tokenHash: { type: String, required: true },
+        expiresAt: { type: Date, required: true },
+        createdAt: { type: Date, default: Date.now },
+        userAgent: { type: String, default: "" },
+        ip: { type: String, default: "" },
+      },
+    ],
   },
   { timestamps: true }
 );

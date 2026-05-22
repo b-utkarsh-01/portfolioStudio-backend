@@ -1,6 +1,8 @@
 import express from "express";
 import Portfolio from "../models/Portfolio.js";
 import { authMiddleware } from "../middleware/auth.js";
+import { validatePortfolioPayload } from "../utils/portfolioValidation.js";
+import { sendError } from "../middleware/errors.js";
 
 const router = express.Router();
 
@@ -8,7 +10,11 @@ router.get("/me", authMiddleware, async (req, res) => {
   try {
     const portfolio = await Portfolio.findOne({ user: req.user._id }).lean();
     if (!portfolio) {
-      return res.status(404).json({ message: "Portfolio not found." });
+      return sendError(res, req, {
+        status: 404,
+        code: "PORTFOLIO_NOT_FOUND",
+        message: "Portfolio not found.",
+      });
     }
 
     return res.json({
@@ -19,14 +25,27 @@ router.get("/me", authMiddleware, async (req, res) => {
       },
     });
   } catch {
-    return res.status(500).json({ message: "Failed to fetch portfolio." });
+    return sendError(res, req, {
+      status: 500,
+      code: "PORTFOLIO_FETCH_FAILED",
+      message: "Failed to fetch portfolio.",
+    });
   }
 });
 
 router.put("/me", authMiddleware, async (req, res) => {
   try {
-    const templateId = `${req.body.templateId || "portfolio-v1"}`.trim();
-    const data = req.body.data || {};
+    const validation = validatePortfolioPayload(req.body);
+    if (!validation.ok) {
+      return sendError(res, req, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+        message: "Invalid portfolio payload.",
+        details: validation.errors,
+      });
+    }
+
+    const { templateId, data } = validation.value;
 
     const updated = await Portfolio.findOneAndUpdate(
       { user: req.user._id },
@@ -48,7 +67,11 @@ router.put("/me", authMiddleware, async (req, res) => {
       },
     });
   } catch {
-    return res.status(500).json({ message: "Failed to save portfolio." });
+    return sendError(res, req, {
+      status: 500,
+      code: "PORTFOLIO_SAVE_FAILED",
+      message: "Failed to save portfolio.",
+    });
   }
 });
 
@@ -57,7 +80,11 @@ router.get("/:username", async (req, res) => {
     const username = `${req.params.username || ""}`.trim().toLowerCase();
     const portfolio = await Portfolio.findOne({ username }).lean();
     if (!portfolio) {
-      return res.status(404).json({ message: "Portfolio not found." });
+      return sendError(res, req, {
+        status: 404,
+        code: "PORTFOLIO_NOT_FOUND",
+        message: "Portfolio not found.",
+      });
     }
     return res.json({
       portfolio: {
@@ -67,7 +94,11 @@ router.get("/:username", async (req, res) => {
       },
     });
   } catch {
-    return res.status(500).json({ message: "Failed to fetch portfolio." });
+    return sendError(res, req, {
+      status: 500,
+      code: "PORTFOLIO_FETCH_FAILED",
+      message: "Failed to fetch portfolio.",
+    });
   }
 });
 
