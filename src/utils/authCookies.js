@@ -7,7 +7,7 @@ export const REFRESH_COOKIE_NAME = "ps_refresh";
 const buildCookieOptions = (maxAgeMs) => ({
   httpOnly: true,
   secure: env.cookieSecure,
-  sameSite: "lax",
+  sameSite: env.cookieSecure ? "none" : "lax",
   path: "/",
   maxAge: maxAgeMs,
   ...(env.cookieDomain ? { domain: env.cookieDomain } : {}),

@@ -16,7 +16,9 @@ export const env = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "15m",
   refreshTokenSecret: process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET || "",
   refreshTokenExpiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN || "30d",
-  cookieSecure: process.env.COOKIE_SECURE === "true",
+  cookieSecure:
+    process.env.COOKIE_SECURE === "true" ||
+    (process.env.NODE_ENV === "production" && process.env.COOKIE_SECURE !== "false"),
   cookieDomain: process.env.COOKIE_DOMAIN || "",
   corsOrigins: parsedCorsOrigins.length ? parsedCorsOrigins : [fallbackCorsOrigin],
 };
