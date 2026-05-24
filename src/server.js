@@ -32,7 +32,7 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: "1mb" }));
 
 app.get("/", (req, res) => {
-  res.send("PortfolioStudio Backend is Running 🚀");
+  res.send("PortfolioStudio Backend is running.");
 });
 
 app.get("/api/health", (req, res) => {
@@ -66,3 +66,4 @@ const start = async () => {
 };
 
 start();
+
