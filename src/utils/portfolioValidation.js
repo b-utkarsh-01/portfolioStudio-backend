@@ -109,13 +109,16 @@ const sanitizePortfolioData = (data) => {
 };
 
 export const validatePortfolioPayload = (payload) => {
-  const rawTemplateId = sanitizeString(payload?.templateId || "premium-v1", 40);
-  const templateId = TEMPLATE_IDS.includes(rawTemplateId) ? rawTemplateId : "";
+  const rawTemplateId = sanitizeString(payload?.templateId || "default-v1", 40);
+  const isPatternValid = /^(default|premium|ai)-[a-z0-9-]+$/i.test(rawTemplateId);
+  const templateId = isPatternValid ? rawTemplateId : "";
   const data = sanitizePortfolioData(payload?.data);
 
   const errors = [];
   if (!templateId) {
-    errors.push(`templateId must be one of: ${TEMPLATE_IDS.join(", ")}`);
+    errors.push(
+      `templateId must match pattern: default-*, premium-*, or ai-* (allowed examples: ${TEMPLATE_IDS.join(", ")})`
+    );
   }
   if (!data.profile.name) {
     errors.push("profile.name is required.");
@@ -125,7 +128,7 @@ export const validatePortfolioPayload = (payload) => {
     ok: errors.length === 0,
     errors,
     value: {
-      templateId: templateId || "premium-v1",
+      templateId: templateId || "default-v1",
       data,
     },
   };

@@ -76,7 +76,7 @@ const issueSession = async (req, res, user) => {
     }
   );
 
-  setAuthCookies(res, { accessToken, refreshToken });
+  setAuthCookies(req, res, { accessToken, refreshToken });
 };
 
 router.post("/register", async (req, res) => {
@@ -218,7 +218,7 @@ router.post("/refresh", async (req, res) => {
       (entry) => entry.tokenHash === tokenHash && new Date(entry.expiresAt).getTime() > Date.now()
     );
     if (!user || !validToken) {
-      clearAuthCookies(res);
+      clearAuthCookies(req, res);
       return sendError(res, req, { status: 401, code: "UNAUTHORIZED", message: "Unauthorized" });
     }
 
@@ -232,7 +232,7 @@ router.post("/refresh", async (req, res) => {
       },
     });
   } catch {
-    clearAuthCookies(res);
+    clearAuthCookies(req, res);
     return sendError(res, req, { status: 401, code: "UNAUTHORIZED", message: "Unauthorized" });
   }
 });
@@ -247,7 +247,7 @@ router.post("/logout", async (req, res) => {
       await User.updateOne({ _id: decoded.sub }, { $pull: { refreshTokens: { tokenHash } } });
     }
   } finally {
-    clearAuthCookies(res);
+    clearAuthCookies(req, res);
   }
   return res.json({ ok: true });
 });

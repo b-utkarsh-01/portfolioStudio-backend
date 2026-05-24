@@ -8,13 +8,11 @@ const router = express.Router();
 
 router.get("/me", authMiddleware, async (req, res) => {
   try {
-    const portfolio = await Portfolio.findOne({ user: req.user._id }).lean();
+    const portfolio =
+      (await Portfolio.findOne({ user: req.user._id }).lean()) ||
+      (await Portfolio.findOne({ username: req.user.username }).lean());
     if (!portfolio) {
-      return sendError(res, req, {
-        status: 404,
-        code: "PORTFOLIO_NOT_FOUND",
-        message: "Portfolio not found.",
-      });
+      return res.json({ portfolio: null });
     }
 
     return res.json({
@@ -48,7 +46,9 @@ router.put("/me", authMiddleware, async (req, res) => {
     const { templateId, data } = validation.value;
 
     const updated = await Portfolio.findOneAndUpdate(
-      { user: req.user._id },
+      {
+        $or: [{ user: req.user._id }, { username: req.user.username }],
+      },
       {
         user: req.user._id,
         username: req.user.username,
