@@ -6,10 +6,16 @@ import { authMiddleware } from "../middleware/auth.js";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../utils/token.js";
 import { defaultPortfolioData } from "../seed/defaultPortfolioData.js";
 import { sendError } from "../middleware/errors.js";
-import { REFRESH_COOKIE_NAME, clearAuthCookies, hashToken, setAuthCookies } from "../utils/authCookies.js";
+import {
+  REFRESH_COOKIE_NAME,
+  clearAuthCookies,
+  hashToken,
+  setAuthCookies,
+} from "../utils/authCookies.js";
 import { parseCookies } from "../utils/cookies.js";
 
 const router = express.Router();
+const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 const toLinesArray = (value) =>
   `${value ?? ""}`
@@ -60,7 +66,7 @@ const issueSession = async (req, res, user) => {
   const accessToken = signAccessToken(user);
   const refreshToken = signRefreshToken(user);
   const tokenHash = hashToken(refreshToken);
-  const refreshExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const refreshExpiresAt = new Date(Date.now() + REFRESH_TTL_MS);
 
   await User.updateOne(
     { _id: user._id },
@@ -78,6 +84,19 @@ const issueSession = async (req, res, user) => {
 
   setAuthCookies(req, res, { accessToken, refreshToken });
 };
+
+const toPublicUser = (user) => ({
+  username: user.username,
+  displayName: user.displayName,
+  hasPremiumAccess: Boolean(user.hasPremiumAccess),
+});
+
+const sendUnauthorized = (res, req) =>
+  sendError(res, req, {
+    status: 401,
+    code: "UNAUTHORIZED",
+    message: "Unauthorized",
+  });
 
 router.post("/register", async (req, res) => {
   try {
@@ -136,11 +155,7 @@ router.post("/register", async (req, res) => {
 
     await issueSession(req, res, user);
     return res.status(201).json({
-      user: {
-        username: user.username,
-        displayName: user.displayName,
-        hasPremiumAccess: Boolean(user.hasPremiumAccess),
-      },
+      user: toPublicUser(user),
     });
   } catch {
     return sendError(res, req, {
@@ -184,11 +199,7 @@ router.post("/login", async (req, res) => {
 
     await issueSession(req, res, user);
     return res.json({
-      user: {
-        username: user.username,
-        displayName: user.displayName,
-        hasPremiumAccess: Boolean(user.hasPremiumAccess),
-      },
+      user: toPublicUser(user),
     });
   } catch {
     return sendError(res, req, {
@@ -204,12 +215,12 @@ router.post("/refresh", async (req, res) => {
     const cookies = parseCookies(req.headers.cookie || "");
     const refreshToken = cookies[REFRESH_COOKIE_NAME] || "";
     if (!refreshToken) {
-      return sendError(res, req, { status: 401, code: "UNAUTHORIZED", message: "Unauthorized" });
+      return sendUnauthorized(res, req);
     }
 
     const decoded = verifyRefreshToken(refreshToken);
     if (decoded?.type !== "refresh") {
-      return sendError(res, req, { status: 401, code: "UNAUTHORIZED", message: "Unauthorized" });
+      return sendUnauthorized(res, req);
     }
 
     const tokenHash = hashToken(refreshToken);
@@ -219,21 +230,17 @@ router.post("/refresh", async (req, res) => {
     );
     if (!user || !validToken) {
       clearAuthCookies(req, res);
-      return sendError(res, req, { status: 401, code: "UNAUTHORIZED", message: "Unauthorized" });
+      return sendUnauthorized(res, req);
     }
 
     await User.updateOne({ _id: user._id }, { $pull: { refreshTokens: { tokenHash } } });
     await issueSession(req, res, user);
     return res.json({
-      user: {
-        username: user.username,
-        displayName: user.displayName,
-        hasPremiumAccess: Boolean(user.hasPremiumAccess),
-      },
+      user: toPublicUser(user),
     });
   } catch {
     clearAuthCookies(req, res);
-    return sendError(res, req, { status: 401, code: "UNAUTHORIZED", message: "Unauthorized" });
+    return sendUnauthorized(res, req);
   }
 });
 
@@ -254,11 +261,7 @@ router.post("/logout", async (req, res) => {
 
 router.get("/me", authMiddleware, async (req, res) => {
   return res.json({
-    user: {
-      username: req.user.username,
-      displayName: req.user.displayName,
-      hasPremiumAccess: Boolean(req.user.hasPremiumAccess),
-    },
+    user: toPublicUser(req.user),
   });
 });
 
