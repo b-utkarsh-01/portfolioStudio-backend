@@ -70,7 +70,7 @@ const sanitizeCustomStages = (value) =>
       id: sanitizeString(stage?.id, 40).toLowerCase(),
       kind: stage?.kind === "cards" ? "cards" : "paragraph",
       paragraph: sanitizeString(stage?.paragraph, 4000),
-      cards: sanitizeItems(stage?.cards, ["title", "subtitle", "description", "link"], 40),
+      cards: sanitizeItems(stage?.cards, ["title", "subtitle", "description", "link", "image"], 40),
     }))
     .filter((stage) => stage.id)
     .slice(0, 40);
@@ -92,6 +92,7 @@ const sanitizePortfolioData = (data) => {
       summary: sanitizeString(profile.summary, 1200),
       highlights: sanitizeStringArray(profile.highlights, { maxItems: 12, maxLength: 80 }),
       contacts: sanitizeContacts(profile.contacts),
+      avatar: sanitizeString(profile.avatar, 512),
     },
     badgeName: {
       name: sanitizeString(badge.name, 100),
@@ -101,7 +102,7 @@ const sanitizePortfolioData = (data) => {
     skills: sanitizeSkills(input.skills),
     education: sanitizeEducation(input.education),
     experiences: sanitizeItems(input.experiences, ["title", "company", "period", "description"]),
-    projects: sanitizeItems(input.projects, ["name", "tech", "description", "link"]),
+    projects: sanitizeItems(input.projects, ["name", "tech", "description", "link", "image"]),
     services: sanitizeItems(input.services, ["name", "description"]),
     testimonials: sanitizeItems(input.testimonials, ["name", "role", "quote"]),
     certifications: sanitizeItems(input.certifications, ["name", "provider", "link"]),
