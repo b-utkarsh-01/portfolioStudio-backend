@@ -25,6 +25,31 @@ const portfolioSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: {},
     },
+    status: {
+      type: String,
+      enum: ["draft", "published"],
+      default: "draft",
+      index: true,
+    },
+    visibility: {
+      type: String,
+      enum: ["public", "unlisted", "private"],
+      default: "private",
+      index: true,
+    },
+    slug: {
+      type: String,
+      default: null,
+      unique: true,
+      sparse: true,
+      lowercase: true,
+      trim: true,
+      index: true,
+    },
+    publishedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );
