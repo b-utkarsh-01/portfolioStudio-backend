@@ -77,6 +77,7 @@ export const issueSession = async (req, res, user) => {
 export const toPublicUser = (user) => ({
   username: user.username,
   displayName: user.displayName,
+  email: user.email,
   hasPremiumAccess: Boolean(user.hasPremiumAccess),
 });
 

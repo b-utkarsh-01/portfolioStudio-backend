@@ -17,7 +17,7 @@ export const refresh = async (req, res) => {
   }
 
   const tokenHash = hashToken(refreshToken);
-  const user = await User.findById(decoded.sub).select("_id username displayName refreshTokens");
+  const user = await User.findById(decoded.sub).select("_id username email displayName refreshTokens");
   const validToken = user?.refreshTokens?.find(
     (entry) => entry.tokenHash === tokenHash && new Date(entry.expiresAt).getTime() > Date.now()
   );

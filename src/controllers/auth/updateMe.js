@@ -13,7 +13,7 @@ export const updateMe = async (req, res) => {
   }
 
   await User.updateOne({ _id: req.user._id }, { $set: { displayName } });
-  const updatedUser = await User.findById(req.user._id).select("username displayName hasPremiumAccess");
+  const updatedUser = await User.findById(req.user._id).select("username email displayName hasPremiumAccess");
 
   return res.json({
     user: toPublicUser(updatedUser || { ...req.user, displayName }),
