@@ -3,6 +3,9 @@ import Portfolio from "../models/Portfolio.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { validatePortfolioPayload } from "../utils/portfolioValidation.js";
 import { sendError } from "../middleware/errors.js";
+import { validateBody } from "../middleware/validate.js";
+import { portfolioUpsertSchema } from "../validation/portfolioSchemas.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
 
 const router = express.Router();
 
@@ -59,8 +62,11 @@ router.get("/me", authMiddleware, async (req, res) => {
   }
 });
 
-router.put("/me", authMiddleware, async (req, res) => {
-  try {
+router.put(
+  "/me",
+  authMiddleware,
+  validateBody(portfolioUpsertSchema),
+  asyncHandler(async (req, res) => {
     const validation = validatePortfolioPayload(req.body);
     if (!validation.ok) {
       return sendError(res, req, {
@@ -88,14 +94,8 @@ router.put("/me", authMiddleware, async (req, res) => {
       message: "Portfolio saved.",
       portfolio: toPortfolioResponse(updated),
     });
-  } catch {
-    return sendError(res, req, {
-      status: 500,
-      code: "PORTFOLIO_SAVE_FAILED",
-      message: "Failed to save portfolio.",
-    });
-  }
-});
+  })
+);
 
 router.get("/slug-availability/:slug", authMiddleware, async (req, res) => {
   try {

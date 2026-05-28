@@ -1,0 +1,39 @@
+# dependencies
+node_modules
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# runtime/temp
+tmp/
+temp/
+uploads/
+*.pid
+*.seed
+
+# build/cache
+dist/
+coverage/
+.nyc_output/
+.cache/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# npm cache
+.npm-cache/

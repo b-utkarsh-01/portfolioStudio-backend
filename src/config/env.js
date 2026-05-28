@@ -12,6 +12,7 @@ const fallbackCorsOrigin = process.env.CORS_ORIGIN || "http://localhost:5173";
 export const env = {
   port: process.env.PORT || 5000,
   mongoUri: process.env.MONGO_URI || "",
+  redisUrl: process.env.REDIS_URL || "",
   jwtSecret: process.env.JWT_SECRET || "",
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "15m",
   refreshTokenSecret: process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET || "",

@@ -3,6 +3,16 @@ import { verifyAccessToken } from "../utils/token.js";
 import { ACCESS_COOKIE_NAME } from "../utils/authCookies.js";
 import { parseCookies } from "../utils/cookies.js";
 import { sendError } from "./errors.js";
+import { LRUCache } from "lru-cache";
+
+const userCacheTtlMs = Number(process.env.AUTH_USER_CACHE_TTL_MS || 60_000);
+const userCache =
+  userCacheTtlMs > 0
+    ? new LRUCache({
+        max: 5000,
+        ttl: userCacheTtlMs,
+      })
+    : null;
 
 export const authMiddleware = async (req, res, next) => {
   try {
@@ -21,7 +31,11 @@ export const authMiddleware = async (req, res, next) => {
     }
 
     const decoded = verifyAccessToken(accessToken);
-    const user = await User.findById(decoded.sub).select("_id username displayName hasPremiumAccess");
+    const cacheKey = decoded?.sub ? String(decoded.sub) : "";
+    const cachedUser = userCache && cacheKey ? userCache.get(cacheKey) : null;
+    const user =
+      cachedUser ||
+      (await User.findById(decoded.sub).select("_id username displayName hasPremiumAccess").lean());
     if (!user) {
       return sendError(res, req, {
         status: 401,
@@ -30,6 +44,7 @@ export const authMiddleware = async (req, res, next) => {
       });
     }
 
+    if (userCache && cacheKey && !cachedUser) userCache.set(cacheKey, user);
     req.user = user;
     return next();
   } catch {
