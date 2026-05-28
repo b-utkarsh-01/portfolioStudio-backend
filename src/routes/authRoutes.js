@@ -1,11 +1,14 @@
 import express from "express";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import User from "../models/User.js";
 import Portfolio from "../models/Portfolio.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../utils/token.js";
 import { defaultPortfolioData } from "../seed/defaultPortfolioData.js";
 import { sendError } from "../middleware/errors.js";
+import { env } from "../config/env.js";
+import { sendPasswordResetEmail } from "../services/emailService.js";
 import {
   REFRESH_COOKIE_NAME,
   clearAuthCookies,
@@ -330,5 +333,120 @@ router.put("/me", authMiddleware, async (req, res) => {
     });
   }
 });
+
+router.post(
+  "/forgot-password",
+  asyncHandler(async (req, res) => {
+    const email = `${req.body?.email || ""}`.trim().toLowerCase();
+    if (!email) {
+      return sendError(res, req, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+        message: "Email is required.",
+      });
+    }
+
+    const user = await User.findOne({ email }).select("_id username email");
+    if (!user) {
+      return sendError(res, req, {
+        status: 404,
+        code: "EMAIL_NOT_FOUND",
+        message: "No account registered with this email.",
+      });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(resetToken).digest("hex");
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    await User.updateOne(
+      { _id: user._id },
+      {
+        $set: {
+          passwordResetToken: tokenHash,
+          passwordResetExpires: expiresAt,
+        },
+      }
+    );
+
+    const resetLink = `${env.frontendUrl}/reset-password?token=${resetToken}`;
+
+    try {
+      await sendPasswordResetEmail(user.email, resetLink);
+    } catch (error) {
+      logger.error("send_reset_email_failed", { email: user.email, error: error.message });
+      await User.updateOne(
+        { _id: user._id },
+        {
+          $unset: {
+            passwordResetToken: "",
+            passwordResetExpires: "",
+          },
+        }
+      );
+      return sendError(res, req, {
+        status: 500,
+        code: "EMAIL_SEND_FAILED",
+        message: "Failed to send reset email. Please try again later.",
+      });
+    }
+
+    return res.json({ message: "Password reset link has been sent to your email." });
+  })
+);
+
+router.post(
+  "/reset-password",
+  asyncHandler(async (req, res) => {
+    const token = `${req.body?.token || ""}`.trim();
+    const newPassword = `${req.body?.password || ""}`;
+
+    if (!token || !newPassword) {
+      return sendError(res, req, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+        message: "Token and new password are required.",
+      });
+    }
+
+    if (newPassword.length < 5) {
+      return sendError(res, req, {
+        status: 400,
+        code: "VALIDATION_ERROR",
+        message: "Password must be at least 5 characters.",
+      });
+    }
+
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+
+    const user = await User.findOne({
+      passwordResetToken: tokenHash,
+      passwordResetExpires: { $gt: new Date() },
+    }).select("_id");
+
+    if (!user) {
+      return sendError(res, req, {
+        status: 400,
+        code: "INVALID_OR_EXPIRED_TOKEN",
+        message: "Password reset link is invalid or has expired.",
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    await User.updateOne(
+      { _id: user._id },
+      {
+        $set: { passwordHash },
+        $unset: {
+          passwordResetToken: "",
+          passwordResetExpires: "",
+        },
+      }
+    );
+
+    return res.json({ message: "Password has been reset successfully." });
+  })
+);
 
 export default router;
