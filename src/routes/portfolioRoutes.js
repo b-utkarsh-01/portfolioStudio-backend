@@ -3,7 +3,7 @@ import { authMiddleware } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { portfolioUpsertSchema } from "../validation/portfolioSchemas.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
-import * as portfolioController from "../controllers/portfolioController.js";
+import * as portfolioController from "../controllers/portfolio/index.js";
 
 const router = express.Router();
 
