@@ -39,7 +39,6 @@ const portfolioSchema = new mongoose.Schema(
     },
     slug: {
       type: String,
-      default: null,
       unique: true,
       sparse: true,
       lowercase: true,
