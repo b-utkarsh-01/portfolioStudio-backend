@@ -35,7 +35,7 @@ export const authMiddleware = async (req, res, next) => {
     const cachedUser = userCache && cacheKey ? userCache.get(cacheKey) : null;
     const user =
       cachedUser ||
-      (await User.findById(decoded.sub).select("_id username displayName hasPremiumAccess").lean());
+      (await User.findById(decoded.sub).select("_id username email displayName hasPremiumAccess").lean());
     if (!user) {
       return sendError(res, req, {
         status: 401,
