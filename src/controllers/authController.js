@@ -1,0 +1,408 @@
+import bcrypt from "bcryptjs";
+import crypto from "crypto";
+import mongoose from "mongoose";
+import User from "../models/User.js";
+import Portfolio from "../models/Portfolio.js";
+import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../utils/token.js";
+import { defaultPortfolioData } from "../seed/defaultPortfolioData.js";
+import { sendError } from "../middleware/errors.js";
+import { env } from "../config/env.js";
+import { sendPasswordResetEmail } from "../services/emailService.js";
+import { REFRESH_COOKIE_NAME, clearAuthCookies, hashToken, setAuthCookies} from "../utils/authCookies.js";
+import { parseCookies } from "../utils/cookies.js";
+import { logger } from "../utils/logger.js";
+
+const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+const toLinesArray = (value) =>
+  `${value ?? ""}`
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const buildRegisterPortfolioData = (input) => {
+  const base = JSON.parse(JSON.stringify(defaultPortfolioData));
+  const profileName = `${input.displayName || input.username || ""}`.trim() || "Your Name";
+  const initials = profileName
+    .split(" ")
+    .map((part) => part[0] || "")
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  const email = `${input.email || ""}`.trim();
+  const phone = `${input.phone || ""}`.trim();
+  const github = `${input.github || ""}`.trim();
+  const githubHref = `${input.githubHref || ""}`.trim() || (github ? `https://${github.replace(/^https?:\/\//i, "")}` : "");
+
+  base.profile.name = profileName;
+  base.profile.title = toLinesArray(input.titles).slice(0, 8);
+  base.profile.summary = `${input.summary || ""}`.trim() || base.profile.summary;
+  base.profile.contacts = [
+    phone ? { type: "phone", text: phone, href: phone.startsWith("tel:") ? phone : `tel:${phone.replace(/\s+/g, "")}` } : null,
+    email ? { type: "email", text: email, href: email.startsWith("mailto:") ? email : `mailto:${email}` } : null,
+    github
+      ? {
+          type: "github",
+          text: github,
+          href: githubHref,
+          external: true,
+        }
+      : null,
+  ].filter(Boolean);
+  base.badgeName = {
+    name: profileName,
+    logo: initials || base.badgeName.logo,
+    badgeTitle: `${input.badgeTitle || ""}`.trim() || base.badgeName.badgeTitle,
+  };
+
+  return base;
+};
+
+const issueSession = async (req, res, user) => {
+  const accessToken = signAccessToken(user);
+  const refreshToken = signRefreshToken(user);
+  const tokenHash = hashToken(refreshToken);
+  const refreshExpiresAt = new Date(Date.now() + REFRESH_TTL_MS);
+
+  await User.updateOne(
+    { _id: user._id },
+    {
+      $push: {
+        refreshTokens: {
+          tokenHash,
+          expiresAt: refreshExpiresAt,
+          userAgent: `${req.headers["user-agent"] || ""}`.slice(0, 300),
+          ip: `${req.ip || ""}`.slice(0, 120),
+        },
+      },
+    }
+  );
+
+  setAuthCookies(req, res, { accessToken, refreshToken });
+};
+
+const toPublicUser = (user) => ({
+  username: user.username,
+  displayName: user.displayName,
+  hasPremiumAccess: Boolean(user.hasPremiumAccess),
+});
+
+const sendUnauthorized = (res, req) =>
+  sendError(res, req, {
+    status: 401,
+    code: "UNAUTHORIZED",
+    message: "Unauthorized",
+  });
+
+export const register = async (req, res) => {
+  const username = `${req.body?.username || ""}`.trim().toLowerCase();
+  const displayName = `${req.body?.displayName || username}`.trim();
+  const password = `${req.body?.password || ""}`;
+  const email = `${req.body?.email || ""}`.trim().toLowerCase();
+
+  if (!username || !password) {
+    return sendError(res, req, {
+      status: 400,
+      code: "VALIDATION_ERROR",
+      message: "Username and password are required.",
+    });
+  }
+  if (username.length < 3 || username.length > 30 || !/^[a-z0-9._-]+$/i.test(username)) {
+    return sendError(res, req, {
+      status: 400,
+      code: "VALIDATION_ERROR",
+      message: "Username must be 3–30 characters and contain only letters, numbers, ., _, -",
+    });
+  }
+  if (!email) {
+    return sendError(res, req, {
+      status: 400,
+      code: "VALIDATION_ERROR",
+      message: "Contact email is required.",
+    });
+  }
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return sendError(res, req, {
+      status: 400,
+      code: "VALIDATION_ERROR",
+      message: "Invalid email address.",
+    });
+  }
+
+  const existing = await User.findOne({ $or: [{ username }, { email }] }).select("_id username email");
+  if (existing?.username === username) {
+    return sendError(res, req, {
+      status: 409,
+      code: "USERNAME_EXISTS",
+      message: "Username already exists.",
+    });
+  }
+  if (existing?.email === email) {
+    return sendError(res, req, {
+      status: 409,
+      code: "EMAIL_EXISTS",
+      message: "Email already exists.",
+    });
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+
+  const session = await mongoose.startSession();
+  let user;
+  try {
+    await session.withTransaction(async () => {
+      user = await User.create(
+        [
+          {
+            username,
+            email,
+            displayName: displayName || username,
+            passwordHash,
+          },
+        ],
+        { session }
+      ).then((docs) => docs[0]);
+
+      await Portfolio.create(
+        [
+          {
+            user: user._id,
+            username: user.username,
+            templateId: "premium-v1",
+            data: buildRegisterPortfolioData({
+              username,
+              displayName: displayName || username,
+              email,
+              phone: req.body?.phone,
+              github: req.body?.github,
+              githubHref: req.body?.githubHref,
+              titles: req.body?.titles,
+              summary: req.body?.summary,
+              badgeTitle: req.body?.badgeTitle,
+            }),
+          },
+        ],
+        { session }
+      );
+    });
+  } catch (error) {
+    logger.error("register_failed", { requestId: req.requestId, username, email, error: { message: error.message, code: error.code } });
+    throw error;
+  } finally {
+    session.endSession();
+  }
+
+  await issueSession(req, res, user);
+  return res.status(201).json({ user: toPublicUser(user) });
+};
+
+export const login = async (req, res) => {
+  const username = `${req.body.username || ""}`.trim().toLowerCase();
+  const password = `${req.body.password || ""}`;
+
+  if (!username || !password) {
+    return sendError(res, req, {
+      status: 400,
+      code: "VALIDATION_ERROR",
+      message: "Username and password are required.",
+    });
+  }
+
+  const user = await User.findOne({ username });
+  if (!user) {
+    return sendError(res, req, {
+      status: 401,
+      code: "INVALID_CREDENTIALS",
+      message: "Invalid username or password.",
+    });
+  }
+
+  const ok = await bcrypt.compare(password, user.passwordHash);
+  if (!ok) {
+    return sendError(res, req, {
+      status: 401,
+      code: "INVALID_CREDENTIALS",
+      message: "Invalid username or password.",
+    });
+  }
+
+  await issueSession(req, res, user);
+  return res.json({
+    user: toPublicUser(user),
+  });
+};
+
+export const refresh = async (req, res) => {
+  const cookies = parseCookies(req.headers.cookie || "");
+  const refreshToken = cookies[REFRESH_COOKIE_NAME] || "";
+  if (!refreshToken) {
+    return sendUnauthorized(res, req);
+  }
+
+  const decoded = verifyRefreshToken(refreshToken);
+  if (decoded?.type !== "refresh") {
+    return sendUnauthorized(res, req);
+  }
+
+  const tokenHash = hashToken(refreshToken);
+  const user = await User.findById(decoded.sub).select("_id username displayName refreshTokens");
+  const validToken = user?.refreshTokens?.find(
+    (entry) => entry.tokenHash === tokenHash && new Date(entry.expiresAt).getTime() > Date.now()
+  );
+  if (!user || !validToken) {
+    clearAuthCookies(req, res);
+    return sendUnauthorized(res, req);
+  }
+
+  await User.updateOne({ _id: user._id }, { $pull: { refreshTokens: { tokenHash } } });
+  await issueSession(req, res, user);
+  return res.json({
+    user: toPublicUser(user),
+  });
+};
+
+export const logout = async (req, res) => {
+  const cookies = parseCookies(req.headers.cookie || "");
+  const refreshToken = cookies[REFRESH_COOKIE_NAME] || "";
+  if (refreshToken) {
+    const decoded = verifyRefreshToken(refreshToken);
+    const tokenHash = hashToken(refreshToken);
+    await User.updateOne({ _id: decoded.sub }, { $pull: { refreshTokens: { tokenHash } } });
+  }
+  clearAuthCookies(req, res);
+  return res.json({ ok: true });
+};
+
+export const getMe = async (req, res) => {
+  return res.json({
+    user: toPublicUser(req.user),
+  });
+};
+
+export const updateMe = async (req, res) => {
+  const displayName = `${req.body?.displayName || ""}`.trim();
+  if (!displayName) {
+    return sendError(res, req, {
+      status: 400,
+      code: "VALIDATION_ERROR",
+      message: "Display name is required.",
+    });
+  }
+
+  await User.updateOne({ _id: req.user._id }, { $set: { displayName } });
+  const updatedUser = await User.findById(req.user._id).select("username displayName hasPremiumAccess");
+
+  return res.json({
+    user: toPublicUser(updatedUser || { ...req.user, displayName }),
+  });
+};
+
+export const forgotPassword = async (req, res) => {
+  const email = `${req.body?.email || ""}`.trim().toLowerCase();
+  if (!email) {
+    return sendError(res, req, {
+      status: 400,
+      code: "VALIDATION_ERROR",
+      message: "Email is required.",
+    });
+  }
+
+  const user = await User.findOne({ email }).select("_id username email");
+  if (!user) {
+    return sendError(res, req, {
+      status: 404,
+      code: "EMAIL_NOT_FOUND",
+      message: "No account registered with this email.",
+    });
+  }
+
+  const resetToken = crypto.randomBytes(32).toString("hex");
+  const tokenHash = crypto.createHash("sha256").update(resetToken).digest("hex");
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+  await User.updateOne(
+    { _id: user._id },
+    {
+      $set: {
+        passwordResetToken: tokenHash,
+        passwordResetExpires: expiresAt,
+      },
+    }
+  );
+
+  const resetLink = `${env.frontendUrl}/reset-password?token=${resetToken}`;
+
+  try {
+    await sendPasswordResetEmail(user.email, resetLink);
+  } catch (error) {
+    logger.error("send_reset_email_failed", { email: user.email, error: error.message });
+    await User.updateOne(
+      { _id: user._id },
+      {
+        $unset: {
+          passwordResetToken: "",
+          passwordResetExpires: "",
+        },
+      }
+    );
+    return sendError(res, req, {
+      status: 500,
+      code: "EMAIL_SEND_FAILED",
+      message: "Failed to send reset email. Please try again later.",
+    });
+  }
+
+  return res.json({ message: "Password reset link has been sent to your email." });
+};
+
+export const resetPassword = async (req, res) => {
+  const token = `${req.body?.token || ""}`.trim();
+  const newPassword = `${req.body?.password || ""}`;
+
+  if (!token || !newPassword) {
+    return sendError(res, req, {
+      status: 400,
+      code: "VALIDATION_ERROR",
+      message: "Token and new password are required.",
+    });
+  }
+
+  if (newPassword.length < 5) {
+    return sendError(res, req, {
+      status: 400,
+      code: "VALIDATION_ERROR",
+      message: "Password must be at least 5 characters.",
+    });
+  }
+
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+
+  const user = await User.findOne({
+    passwordResetToken: tokenHash,
+    passwordResetExpires: { $gt: new Date() },
+  }).select("_id");
+
+  if (!user) {
+    return sendError(res, req, {
+      status: 400,
+      code: "INVALID_OR_EXPIRED_TOKEN",
+      message: "Password reset link is invalid or has expired.",
+    });
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+
+  await User.updateOne(
+    { _id: user._id },
+    {
+      $set: { passwordHash },
+      $unset: {
+        passwordResetToken: "",
+        passwordResetExpires: "",
+      },
+    }
+  );
+
+  return res.json({ message: "Password has been reset successfully." });
+};
