@@ -27,10 +27,25 @@ export const errorHandler = (err, req, res, next) => {
 
   if (isMongoDuplicateKeyError(err)) {
     const details = toDuplicateKeyDetails(err);
+    let message = "A record with the same value already exists.";
+
+    if (details.keys.includes("username")) {
+      message = "Username already exists.";
+    } else if (details.keys.includes("email")) {
+      message = "Email already exists.";
+    } else if (details.keys.includes("slug")) {
+      message = "Slug already exists.";
+    } else if (details.keys.includes("user")) {
+      message = "User already has a portfolio.";
+    } else if (details.keys.length > 0) {
+      const keyName = details.keys[0];
+      message = `${keyName.charAt(0).toUpperCase() + keyName.slice(1)} already exists.`;
+    }
+
     return sendError(res, req, {
       status: 409,
       code: "DUPLICATE_KEY",
-      message: "A record with the same value already exists.",
+      message,
       details,
     });
   }
