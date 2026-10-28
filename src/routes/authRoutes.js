@@ -11,6 +11,7 @@ router.post("/refresh", asyncHandler(authController.refresh));
 router.post("/logout", asyncHandler(authController.logout));
 router.get("/me", authMiddleware, asyncHandler(authController.getMe));
 router.put("/me", authMiddleware, asyncHandler(authController.updateMe));
+router.post("/change-password", authMiddleware, asyncHandler(authController.changePassword));
 router.post("/forgot-password", asyncHandler(authController.forgotPassword));
 router.post("/reset-password", asyncHandler(authController.resetPassword));
 

@@ -17,7 +17,7 @@ const sanitizeContacts = (value) =>
     .map((contact) => ({
       type: sanitizeString(contact?.type, 24).toLowerCase(),
       text: sanitizeString(contact?.text, 120),
-      href: sanitizeString(contact?.href, 256),
+      href: sanitizeString(contact?.href, 2048),
       external: Boolean(contact?.external),
     }))
     .filter((contact) => contact.type && contact.text && contact.href)
@@ -27,7 +27,11 @@ const sanitizeItems = (value, fields, maxItems = 30) =>
   (Array.isArray(value) ? value : [])
     .map((item) =>
       fields.reduce((acc, field) => {
-        acc[field] = sanitizeString(item?.[field], 300);
+        let maxLen = 300;
+        if (field === "image") maxLen = 1000000;
+        else if (field === "description" || field === "paragraph") maxLen = 2000;
+        else if (field === "link" || field === "href") maxLen = 2048;
+        acc[field] = sanitizeString(item?.[field], maxLen);
         return acc;
       }, {})
     )
@@ -92,7 +96,7 @@ const sanitizePortfolioData = (data) => {
       summary: sanitizeString(profile.summary, 1200),
       highlights: sanitizeStringArray(profile.highlights, { maxItems: 12, maxLength: 80 }),
       contacts: sanitizeContacts(profile.contacts),
-      avatar: sanitizeString(profile.avatar, 512),
+      avatar: sanitizeString(profile.avatar, 1000000),
     },
     badgeName: {
       name: sanitizeString(badge.name, 100),

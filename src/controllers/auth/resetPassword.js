@@ -15,11 +15,11 @@ export const resetPassword = async (req, res) => {
     });
   }
 
-  if (newPassword.length < 5) {
+  if (newPassword.length < 6) {
     return sendError(res, req, {
       status: 400,
       code: "VALIDATION_ERROR",
-      message: "Password must be at least 5 characters.",
+      message: "Password must be at least 6 characters.",
     });
   }
 
@@ -28,7 +28,7 @@ export const resetPassword = async (req, res) => {
   const user = await User.findOne({
     passwordResetToken: tokenHash,
     passwordResetExpires: { $gt: new Date() },
-  }).select("_id");
+  }).select("_id username");
 
   if (!user) {
     return sendError(res, req, {
@@ -40,10 +40,11 @@ export const resetPassword = async (req, res) => {
 
   const passwordHash = await bcrypt.hash(newPassword, 10);
 
+  // Update password and revoke all existing sessions/refresh tokens for security
   await User.updateOne(
     { _id: user._id },
     {
-      $set: { passwordHash },
+      $set: { passwordHash, refreshTokens: [] },
       $unset: {
         passwordResetToken: "",
         passwordResetExpires: "",
@@ -51,5 +52,5 @@ export const resetPassword = async (req, res) => {
     }
   );
 
-  return res.json({ message: "Password has been reset successfully." });
+  return res.json({ message: "Password has been reset successfully. Please log in with your new password." });
 };

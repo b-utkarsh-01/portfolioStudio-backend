@@ -2,6 +2,8 @@ import { z } from "zod";
 
 const safeString = (max = 2000) => z.string().trim().max(max);
 const safeUrl = () => safeString(2048);
+// Base64 JPG image strings can be up to ~1MB (client compresses down to ~30-80KB)
+const safeImage = () => z.string().trim().max(1000000).nullish();
 
 const contactSchema = z
   .object({
@@ -19,7 +21,7 @@ const portfolioProfileSchema = z
     summary: safeString(5000).optional(),
     highlights: z.array(safeString(200)).max(50).optional(),
     contacts: z.array(contactSchema).max(30).optional(),
-    avatar: safeUrl().optional(),
+    avatar: safeImage().optional(),
   })
   .passthrough();
 
@@ -67,7 +69,7 @@ const portfolioDataSchema = z
           tech: safeString(400).optional(),
           description: safeString(2000).optional(),
           link: safeUrl().optional(),
-          image: safeUrl().optional(),
+          image: safeImage().optional(),
         })
       )
       .max(200)
@@ -79,4 +81,3 @@ export const portfolioUpsertSchema = z.object({
   templateId: safeString(60).optional(),
   data: portfolioDataSchema,
 });
-

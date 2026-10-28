@@ -38,27 +38,41 @@ export const forgotPassword = async (req, res) => {
     }
   );
 
-  const resetLink = `${env.frontendUrl}/reset-password?token=${resetToken}`;
-
+  let frontendBase = env.frontendUrl || "https://portfolio-studio-frontend.vercel.app";
   try {
-    await sendPasswordResetEmail(user.email, resetLink);
-  } catch (error) {
-    logger.error("send_reset_email_failed", { email: user.email, error: error.message });
-    await User.updateOne(
-      { _id: user._id },
-      {
-        $unset: {
-          passwordResetToken: "",
-          passwordResetExpires: "",
-        },
-      }
-    );
-    return sendError(res, req, {
-      status: 500,
-      code: "EMAIL_SEND_FAILED",
-      message: "Failed to send reset email. Please try again later.",
-    });
+    const origin = req.headers.origin || (req.headers.referer ? new URL(req.headers.referer).origin : "");
+    if (origin && (origin.includes("localhost") || origin.includes("vercel.app"))) {
+      frontendBase = origin;
+    }
+  } catch {
+    // fallback to env.frontendUrl
   }
 
-  return res.json({ message: "Password reset link has been sent to your email." });
+  const resetLink = `${frontendBase}/reset-password?token=${resetToken}`;
+
+  const isSmtpConfigured = Boolean(
+    env.smtpUser &&
+    env.smtpPass &&
+    env.smtpUser !== "your_gmail_username@gmail.com"
+  );
+
+  if (isSmtpConfigured) {
+    try {
+      await sendPasswordResetEmail(user.email, resetLink);
+    } catch (error) {
+      logger.error("send_reset_email_failed", { email: user.email, error: error.message });
+      console.error("[SMTP ERROR]:", error.message);
+      return sendError(res, req, {
+        status: 500,
+        code: "EMAIL_SEND_FAILED",
+        message: "Failed to send reset email. Please try again later.",
+      });
+    }
+  } else {
+    logger.warn("smtp_not_configured", { email: user.email });
+  }
+
+  return res.json({
+    message: "Password reset link has been sent to your email. Please check your inbox.",
+  });
 };

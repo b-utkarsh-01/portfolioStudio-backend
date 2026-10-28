@@ -6,3 +6,4 @@ export { getMe } from "./getMe.js";
 export { updateMe } from "./updateMe.js";
 export { forgotPassword } from "./forgotPassword.js";
 export { resetPassword } from "./resetPassword.js";
+export { changePassword } from "./changePassword.js";
