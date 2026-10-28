@@ -6,15 +6,37 @@ export const sendPasswordResetEmail = async (toEmail, resetLink) => {
     throw new Error("SMTP credentials are not configured in environment variables.");
   }
 
-  const transporter = nodemailer.createTransport({
-    host: env.smtpHost,
-    port: env.smtpPort,
-    secure: env.smtpPort === 465, // true for 465, false for 587
-    auth: {
-      user: env.smtpUser,
-      pass: env.smtpPass,
-    },
-  });
+  const isGmail =
+    env.smtpHost?.includes("gmail") ||
+    env.smtpUser?.includes("@gmail.com");
+
+  // On cloud platforms (Render, AWS, etc.), port 587 STARTTLS is often throttled or blocked.
+  // Port 465 SSL or nodemailer's built-in 'gmail' service is far more reliable and faster.
+  const transportOptions = isGmail
+    ? {
+        service: "gmail",
+        auth: {
+          user: env.smtpUser,
+          pass: env.smtpPass,
+        },
+        connectionTimeout: 10000, // 10s
+        greetingTimeout: 10000,   // 10s
+        socketTimeout: 15000,     // 15s
+      }
+    : {
+        host: env.smtpHost,
+        port: env.smtpPort,
+        secure: env.smtpPort === 465,
+        auth: {
+          user: env.smtpUser,
+          pass: env.smtpPass,
+        },
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 15000,
+      };
+
+  const transporter = nodemailer.createTransport(transportOptions);
 
   const mailOptions = {
     from: env.emailFrom,
