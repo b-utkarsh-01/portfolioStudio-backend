@@ -50,18 +50,19 @@ export const forgotPassword = async (req, res) => {
 
   const resetLink = `${frontendBase}/reset-password?token=${resetToken}`;
 
-  const isSmtpConfigured = Boolean(
-    env.smtpUser &&
-    env.smtpPass &&
-    env.smtpUser !== "your_gmail_username@gmail.com"
+  const isEmailConfigured = Boolean(
+    env.brevoApiKey ||
+    (env.smtpUser &&
+      env.smtpPass &&
+      env.smtpUser !== "your_gmail_username@gmail.com")
   );
 
-  if (isSmtpConfigured) {
+  if (isEmailConfigured) {
     try {
       await sendPasswordResetEmail(user.email, resetLink);
     } catch (error) {
       logger.error("send_reset_email_failed", { email: user.email, error: error.message });
-      console.error("[SMTP ERROR]:", error.message);
+      console.error("[EMAIL ERROR]:", error.message);
       return sendError(res, req, {
         status: 500,
         code: "EMAIL_SEND_FAILED",
@@ -69,7 +70,7 @@ export const forgotPassword = async (req, res) => {
       });
     }
   } else {
-    logger.warn("smtp_not_configured", { email: user.email });
+    logger.warn("email_not_configured", { email: user.email });
   }
 
   return res.json({

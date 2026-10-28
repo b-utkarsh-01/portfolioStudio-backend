@@ -22,6 +22,7 @@ export const env = {
     (process.env.NODE_ENV === "production" && process.env.COOKIE_SECURE !== "false"),
   cookieDomain: process.env.COOKIE_DOMAIN || "",
   corsOrigins: parsedCorsOrigins.length ? parsedCorsOrigins : [fallbackCorsOrigin],
+  brevoApiKey: process.env.BREVO_API_KEY || "",
   smtpHost: process.env.SMTP_HOST || "smtp.gmail.com",
   smtpPort: parseInt(process.env.SMTP_PORT || "587", 10),
   smtpUser: process.env.SMTP_USER || "",
