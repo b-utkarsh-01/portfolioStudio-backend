@@ -29,6 +29,10 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    historyRetentionDays: {
+      type: Number,
+      default: 7, // 7 days default, 0 = never delete
+    },
     passwordHash: {
       type: String,
       required: true,

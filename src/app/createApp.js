@@ -7,6 +7,7 @@ import authRoutes from "../routes/authRoutes.js";
 import aiRoutes from "../routes/aiRoutes.js";
 import portfolioRoutes from "../routes/portfolioRoutes.js";
 import templateRoutes from "../routes/templateRoutes.js";
+import historyRoutes from "../routes/historyRoutes.js";
 import { securityHeaders } from "../middleware/securityHeaders.js";
 import { createRateLimiter } from "../middleware/rateLimit.js";
 import { sendError } from "../middleware/errors.js";
@@ -60,6 +61,7 @@ export const createApp = () => {
   // Backward-compatible singular route alias.
   app.use("/api/portfolio", portfolioLimiter, portfolioRoutes);
   app.use("/api/templates", templateRoutes);
+  app.use("/api/history", portfolioLimiter, historyRoutes);
 
   app.use((req, res) =>
     sendError(res, req, {
@@ -73,4 +75,3 @@ export const createApp = () => {
 
   return app;
 };
-
